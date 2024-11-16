@@ -26,18 +26,31 @@ public class DiscordRPCExtension extends ControllerExtension
    private StringValue projectName;
    private StringValue panelLayout;
    private long projectOpenedTime;
+   private boolean isDisconnected = true;
 
    protected DiscordRPCExtension(final DiscordRPCExtensionDefinition definition, final ControllerHost host)
    {
       super(definition, host);
    }
+   
+   private void disconnect() {
+       rpc.shutdown();
+       isDisconnected = true;
+   }
 
    private void updatePresence() {
       if(!this.enabled.get().equals(enabledOpts[0])) return;
       String pn = this.projectName.get();
+      if(pn.equals("")) {
+          if(!isDisconnected) this.disconnect();
+          return;
+      }
+      if(isDisconnected) {
+          this.discordConnect();
+      }
       String panel = this.panelLayout.get();
       DiscordRichPresence p = DiscordRichPresence.builder()
-         .details(pn.equals("") ? "" : pn + ".bwproject")
+         .details(pn + ".bwproject")
          .state(panel.equals(Application.PANEL_LAYOUT_ARRANGE) ? "Arranging"
             : panel.equals(Application.PANEL_LAYOUT_MIX) ? "Mixing"
             : panel.equals(Application.PANEL_LAYOUT_EDIT) ? "Editing"
@@ -86,6 +99,7 @@ public class DiscordRPCExtension extends ControllerExtension
 
       try {
          rpc.init("1306910213659561984", handler, false);
+         isDisconnected = false;
          host.println("Discord RPC initialized");
       } catch (UnsupportedOsType e) {
          host.errorln("Unsupported OS");
@@ -95,9 +109,7 @@ public class DiscordRPCExtension extends ControllerExtension
    @Override
    public void init()
    {
-      host = getHost();      
-
-      // Perform your driver initialization here.
+      host = getHost();
 
       rpc = new DiscordRpc();
 
@@ -115,13 +127,11 @@ public class DiscordRPCExtension extends ControllerExtension
             // on
             host.println("updating");
             updateTimestamp();
-            discordConnect();
             this.updatePresence();
          } else {
             host.println("shutting down");
             // off
-            // rpc.updatePresence(null);
-            rpc.shutdown();
+            this.disconnect();
          }
       });
    }
@@ -129,7 +139,7 @@ public class DiscordRPCExtension extends ControllerExtension
    @Override
    public void exit()
    {
-      rpc.shutdown();
+      this.disconnect();
    }
 
    @Override
